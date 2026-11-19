@@ -381,11 +381,16 @@ function Read-ReplicationConfig
         throw "Config file not found: $Path"
     }
     $config = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-    $mappings = @($config.PSObject.Properties | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Value) } |
-            ForEach-Object { [pscustomobject]@{ LocalDatabase = $_.Name; SecretName = [string]$_.Value } })
+    $mappings = @($config.PSObject.Properties | ForEach-Object {
+            if ([string]::IsNullOrWhiteSpace($_.Value.Vault) -or [string]::IsNullOrWhiteSpace($_.Value.Secret))
+            {
+                throw "Config entry '$( $_.Name )' must have non-empty 'Vault' and 'Secret' values."
+            }
+            [pscustomobject]@{ LocalDatabase = $_.Name; Vault = [string]$_.Value.Vault; SecretName = [string]$_.Value.Secret }
+        })
     if (-not $mappings)
     {
-        throw "Config file '$Path' must map at least one local database name to a Key Vault secret name."
+        throw "Config file '$Path' must map at least one local database name to a vault and secret name."
     }
     Write-Log "Config contains $( $mappings.Count ) database mapping(s)."
     $mappings
